@@ -5,75 +5,67 @@ import './styles.css';
 
 function App() {
   const [code, setCode] = useState(`# Welcome to Python Playground!
-# Try writing some code and click Run
+print("Hello World!")`);
 
-name = input("What's your name? ")
-print(f"Hello, {name}! Let's learn Python!")
-
-# Calculate factorial
-def factorial(n):
-  if n == 0:
-    return 1
-  else:
-    return n * factorial(n-1)
-
-print(f"Factorial of 5 is {factorial(5)}")`);
-
-  const [output, setOutput] = useState('');
+  const [output, setOutput] = useState('Loading Python runtime...');
   const [isPyodideLoaded, setIsPyodideLoaded] = useState(false);
   const [pyodide, setPyodide] = useState(null);
   const [theme, setTheme] = useState('light');
 
   useEffect(() => {
-    // Load Pyodide
-    async function loadPyodide() {
+    // Check if Pyodide is already loaded
+    if (window.loadPyodide) {
+      loadPyodideRuntime();
+    } else {
+      // If not, set up an event listener for when it loads
+      window.addEventListener('pyodide-loaded', loadPyodideRuntime);
+      return () => window.removeEventListener('pyodide-loaded', loadPyodideRuntime);
+    }
+  }, []);
+
+  async function loadPyodideRuntime() {
+    try {
       const pyodide = await window.loadPyodide({
         indexURL: "https://cdn.jsdelivr.net/pyodide/v0.23.4/full/"
       });
-      await pyodide.loadPackage("micropip");
       setPyodide(pyodide);
       setIsPyodideLoaded(true);
       setOutput('Python runtime loaded! Ready to execute code.\n');
+    } catch (err) {
+      setOutput(`Failed to load Python: ${err.message}`);
     }
-    loadPyodide();
-  }, []);
+  }
 
   const runCode = async () => {
-    if (!isPyodideLoaded) {
-      setOutput('Python runtime still loading... please wait');
-      return;
-    }
+  if (!isPyodideLoaded) {
+    setOutput('Python runtime still loading... please wait\n');
+    return;
+  }
 
-    try {
-      setOutput('Running...\n');
-      // Capture console.log output
-      const stdout = [];
-      pyodide.setStdout({ batched: (text) => stdout.push(text) });
-      
-      // Add input() function support
-      let inputQueue = [];
-      const originalInput = window.prompt;
-      window.prompt = (msg) => {
-        const userInput = originalInput(msg);
-        inputQueue.push(userInput);
-        return userInput;
-      };
+  try {
+    setOutput(''); // Clear previous output
+    let outputBuffer = [];
+    
+    pyodide.setStdout({ batched: (text) => {
+      // Ensure each print statement ends with newline
+      outputBuffer.push(text + (text.endsWith('\n') ? '' : '\n'));
+      setOutput(outputBuffer.join(''));
+    }});
+    
+    // Handle input
+    const originalPrompt = window.prompt;
+    window.prompt = (msg) => {
+      const userInput = originalPrompt(msg);
+      return userInput;
+    };
 
-      await pyodide.runPythonAsync(code);
-      
-      // Restore original prompt
-      window.prompt = originalInput;
-      
-      setOutput(stdout.join(''));
-    } catch (err) {
-      setOutput(`Error: ${err.message}`);
-    }
-  };
-
-  const handleTerminalInput = (input) => {
-    // This would handle terminal input if we implement interactive mode
-    console.log('Terminal input:', input);
-  };
+    await pyodide.runPythonAsync(code);
+    window.prompt = originalPrompt;
+    
+  } catch (err) {
+    setOutput(prev => prev + `\nError: ${err.message}\n`);
+  }
+};
 
   const toggleTheme = () => {
     setTheme(theme === 'light' ? 'dark' : 'light');
@@ -94,15 +86,8 @@ print(f"Factorial of 5 is {factorial(5)}")`);
       </header>
       <div className="container">
         <Editor code={code} onChange={setCode} theme={theme} />
-        <Terminal 
-          output={output} 
-          onInput={handleTerminalInput} 
-          theme={theme} 
-        />
+        <Terminal output={output} theme={theme} />
       </div>
-      <footer>
-        <p>For young coders learning Python | Input works via browser prompts</p>
-      </footer>
     </div>
   );
 }

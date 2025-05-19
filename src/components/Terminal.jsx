@@ -1,4 +1,6 @@
-const Terminal = ({ output, onInput, theme }) => {
+import { useRef, useEffect } from 'react';
+
+const Terminal = ({ output, theme }) => {
   const terminalRef = useRef(null);
 
   useEffect(() => {
@@ -7,21 +9,14 @@ const Terminal = ({ output, onInput, theme }) => {
     }
   }, [output]);
 
+  // Split output by lines and render each line separately
+  const outputLines = output.split('\n').map((line, i) => (
+    <div key={i}>{line || ' '}</div>  // Empty line becomes space to maintain height
+  ));
+
   return (
     <div className={`terminal ${theme}`} ref={terminalRef}>
-      <pre>{output}</pre>
-      <div className="input-line">
-        <span className="prompt">{'> '}</span>
-        <input 
-          type="text" 
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              onInput(e.target.value);
-              e.target.value = '';
-            }
-          }}
-        />
-      </div>
+      {outputLines}
     </div>
   );
 };
